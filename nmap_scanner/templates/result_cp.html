@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+   <body>
+      <table border = 1>
+         <tr>
+            <th>Hostname</th>
+            <th>Open Ports</th>
+            <th>Added</th>
+            <th>Deleted</th>
+            <th>Scanned</th>
+         </tr>
+         {% for hostname, ports, added, deleted, timestamp in result %}
+            <tr>
+               <td> {{ hostname }} </td>
+               <td> {{ ports }} </td>
+               <td> {{ added }} </td>
+               <td> {{ deleted }} </td>
+               <td> {{ timestamp }} </td>
+            </tr>
+         {% endfor %}
+      </table>
+   </body>
+</html>

@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+    <body>
+        {% for hostname, ports, added, deleted, prev_data, timestamp in result %}
+        <h2>
+            Hostname: {{ hostname }},
+            Current Scan: {{ ports }},
+            Added: {{ added }},
+            Deleted: {{ deleted }},
+            Timestamp: {{ timestamp }}
+
+            <table border = 1>
+                <tr>
+                    <th>Hostname</th>
+                    <th>Open Ports</th>
+                    <th>Added</th>
+                    <th>Deleted</th>
+                    <th>Scanned</th>
+                </tr>
+                {% for hostname, ports, added, deleted, timestamp in prev_data %}
+                    <tr>
+                       <td> {{ hostname }} </td>
+                       <td> {{ ports }} </td>
+                       <td> {{ added }} </td>
+                       <td> {{ deleted }} </td>
+                       <td> {{ timestamp }} </td>
+                    </tr>
+                {% endfor %}
+            </table>
+        </h2>
+        {% endfor %}
+   </body>
+</html>
