@@ -26,3 +26,7 @@ $ docker run -p 5001:5001  --expose 5001 nmap_scanner:latest --mysql-host "host.
 # or
 $ docker run -d -p 5001:5001  --expose 5001 nmap_scanner:latest --mysql-host "host.docker.internal" --mysql-user "root" --mysql-password "" --port 5001
 ```
+
+### Run pytest
+```bash
+$ pytest ./tests/test_helper.py

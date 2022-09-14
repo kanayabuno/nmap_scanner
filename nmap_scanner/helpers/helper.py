@@ -1,4 +1,5 @@
 import re
+import socket
 
 def compare_old_new(old, new):
     old_set = set(old)
@@ -20,3 +21,17 @@ def validate_hostname(hostname):
         hostname = hostname[:-1] # strip exactly one dot from the right, if present
     allowed = re.compile("(?!-)[A-Z\d-]{1,63}(?<!-)$", re.IGNORECASE)
     return all(allowed.match(x) for x in hostname.split("."))
+
+def scan_ports(hostname, start, end):
+    ip = socket.gethostbyname(hostname)
+    open_ports = []
+
+    for port in range(start, end+1):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        socket.setdefaulttimeout(1)
+        
+        result = s.connect_ex((hostname, port))
+        if result == 0:
+            open_ports.append(str(port))
+        s.close()
+    return open_ports

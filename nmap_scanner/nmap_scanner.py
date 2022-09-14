@@ -1,7 +1,6 @@
 from flask import Flask, render_template, request, jsonify, abort
 from flask_mysqldb import MySQL
 from datetime import datetime
-import nmap
 import logging
 import os
 import argparse
@@ -14,31 +13,12 @@ logging.basicConfig(level=logging.DEBUG)
 
 app = Flask(__name__)
 
-def nmap_scan(hostname):
-    """A function that scans for open ports on hostname using nmap
-
-    Args:
-        hostname: hostname/IPaddress str
-    Returns:
-        a dictionary of scan resuslt
-    """
-    cursor = mysql.connection.cursor()
+def nmap_scan(hostname, start, end):
     result = {}
-    nm = nmap.PortScanner()
-    nm.scan(hostname, "0-1000")
 
-    open_ports = []
-    for host in nm.all_hosts():
-        for proto in nm[host].all_protocols():
-            lport = list(nm[host][proto].keys())
-            if lport:
-                lport.sort()
-                app.logger.debug(f"lport: {lport}")
-                for port in lport:
-                    app.logger.debug(f"port: {port} state: {nm[host][proto][port]['state']}")
-                    if nm[host][proto][port]["state"] == "open":
-                        app.logger.debug(f"port: {port} state: {nm[host][proto][port]['state']}")
-                        open_ports.append(str(port))
+    cursor = mysql.connection.cursor()
+    open_ports = helper.scan_ports(hostname, start, end)
+
     query_string = "SELECT * FROM {} WHERE hostname='{}'".format(table, hostname)
     app.logger.debug(f"query string: {query_string}")
     cursor.execute(query_string)
@@ -57,6 +37,7 @@ def nmap_scan(hostname):
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "history": data
     }
+    cursor.close()
     return result
 
 @app.route("/")
@@ -86,7 +67,7 @@ def scan():
         hostname = request.form["hostname"]
         cursor = mysql.connection.cursor()
 
-        result = nmap_scan(hostname)
+        result = nmap_scan(hostname, 0, 5000)
         app.logger.debug(f"result: {result}")
 
         if result.get(hostname):
@@ -101,9 +82,6 @@ def scan():
         cursor.close()
 
         return jsonify(result)
-#CREATE TABLE ports(hostname VARCHAR(100) NOT NULL, ports VARCHAR(MAX) NOT NULL, added VARCHAR(MAX) NOT NULL, deleted VARCHAR(MAX) NOT NULL, PRIMARY KEY(hostname));
-
-#SELECT hostname,ports,timestamp FROM ports port1 WHERE timestamp=(SELECT MAX(timestamp) FROM ports port2 WHERE port1.hostname=port2.hostname) ORDER BY hostname, ports, timestamp;
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="nmap scanner")
