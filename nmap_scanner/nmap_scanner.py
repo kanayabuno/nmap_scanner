@@ -15,10 +15,17 @@ logging.basicConfig(level=logging.DEBUG)
 app = Flask(__name__)
 
 def nmap_scan(hostname):
+    """A function that scans for open ports on hostname using nmap
+
+    Args:
+        hostname: hostname/IPaddress str
+    Returns:
+        a dictionary of scan resuslt
+    """
     cursor = mysql.connection.cursor()
     result = {}
     nm = nmap.PortScanner()
-    nm.scan(hostname, "0-4000")
+    nm.scan(hostname, "0-1000")
 
     open_ports = []
     for host in nm.all_hosts():
@@ -54,10 +61,15 @@ def nmap_scan(hostname):
 
 @app.route("/")
 def index():
+    """This renders input form"""
     return render_template("input_form.html")
 
 @app.route("/scan", methods = ["POST"])
 def scan():
+    """API for scanning open ports using nmap
+    
+    POST: perform nmap scan on hostname/IP address
+    """
     app.logger.debug("scanning")
 
     if request.method == "POST":

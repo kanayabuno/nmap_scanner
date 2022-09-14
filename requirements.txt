@@ -1,5 +1,10 @@
 Flask==2.2.2
-Flask_MySQLdb==1.0.1
-mysql_connector_repackaged==0.3.1
-nmap==0.0.1
-python_nmap==0.7.1
+Flask-MySQLdb==1.0.1
+idna==3.3
+Jinja2==3.1.2
+mysql-connector-python==8.0.30
+mysql-connector-repackaged==0.3.1
+mysqlclient==2.1.1
+pipreqs==0.4.11
+protobuf==3.20.1
+python-nmap==0.7.1
