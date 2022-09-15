@@ -6,6 +6,7 @@ import os
 import argparse
 import ipaddress
 import mysql.connector
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from helpers import helper
 
@@ -14,31 +15,19 @@ logging.basicConfig(level=logging.DEBUG)
 app = Flask(__name__)
 
 def nmap_scan(hostname, start, end):
-    result = {}
+    """
+    Returns hostname and open ports on the host.
+            Parameters:
+                hostname (str): hostname/IP address
+                start (int): start of port range
+                end (int): end of port range
 
-    cursor = mysql.connection.cursor()
+            Returns:
+                (tuple): hostname, list of open ports
+    """
+    app.logger.debug(f"Scanning for hostname: {hostname} from {start} to {end}")
     open_ports = helper.scan_ports(hostname, start, end)
-
-    query_string = "SELECT * FROM {} WHERE hostname='{}'".format(table, hostname)
-    app.logger.debug(f"query string: {query_string}")
-    cursor.execute(query_string)
-    data = cursor.fetchall()
-
-    if data:
-        prev_scan = data[-1][1].split(",")
-        added, deleted = helper.compare_old_new(prev_scan, open_ports)
-    else:
-        added, deleted = [], []
-
-    result[hostname] = {
-        "scan": ",".join(open_ports),
-        "added": ",".join(added),
-        "deleted": ",".join(deleted),
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "history": data
-    }
-    cursor.close()
-    return result
+    return (hostname, open_ports)
 
 @app.route("/")
 def index():
@@ -54,34 +43,75 @@ def scan():
     app.logger.debug("scanning")
 
     if request.method == "POST":
+        results = {}
         hostname_input = request.form["hostname"]
+        input_hostnames = hostname_input.split(",")
+        #remove duplicate hostnames
+        input_hostnames = set(input_hostnames)
+        app.logger.debug(f"input form: {hostname_input} hostnames: {input_hostnames}")
 
-        try:
-            #validate hostname
-            if not helper.validate_hostname(hostname_input):
-                #try ip validation
-                ipaddress.ip_address(hostname_input)
-        except ValueError:
-            abort(400, "Invalid hostname/IP address, resubmit.")            
+        for hostname in input_hostnames:
+            app.logger.debug(f"hostname: {hostname}")
+            try:
+                #validate hostname
+                if hostname:
+                    if not helper.validate_hostname(hostname):
+                        #try ip validation
+                        ipaddress.ip_address(hostname)
+                    else:
+                        app.logger.debug(f"valid hostname")
+            except ValueError:
+                abort(400, "Invalid hostname/IP address, resubmit.")
 
-        hostname = request.form["hostname"]
+        app.logger.debug(f"input hostnames: {input_hostnames}")
+
+        threads = []
+        scan_results = {}
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            for hostname in input_hostnames:
+                if hostname:
+                    threads.append(executor.submit(nmap_scan, hostname, 0, 1000))
+
+                for thread in as_completed(threads):
+                    hostname, open_ports = thread.result()
+                    scan_results[hostname] = open_ports
+
+        app.logger.debug(f"results: {results}")
+
         cursor = mysql.connection.cursor()
-
-        result = nmap_scan(hostname, 0, 5000)
-        app.logger.debug(f"result: {result}")
-
-        if result.get(hostname):
-            ports = result[hostname].get("scan", "")
-            added = result[hostname].get("added", "")
-            deleted = result[hostname].get("deleted", "")
-            timestamp = result[hostname].get("timestamp", datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-
-            query_string = "INSERT INTO {} VALUES('{}', '{}', '{}', '{}', '{}')".format(table, hostname, ports, added, deleted, timestamp)
+        for hostname, open_ports in scan_results.items():
+            #get scan history for this host
+            query_string = "SELECT * FROM {} WHERE hostname='{}'".format(table, hostname)
+            app.logger.debug(f"query string: {query_string}")
             cursor.execute(query_string)
+            data = cursor.fetchall()
+
+            if data:
+                prev_scan = data[-1][1].split(",")
+                added, deleted = helper.compare_old_new(prev_scan, open_ports)
+            else:
+                added, deleted = [], []
+
+            open_ports = ",".join(open_ports)
+            added = ",".join(added)
+            deleted = ",".join(deleted)
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            query_string = "INSERT INTO {} VALUES('{}', '{}', '{}', '{}', '{}')".format(table, hostname, open_ports, added, deleted, timestamp)
+            cursor.execute(query_string)
+
+            results[hostname] = {
+                "scan": open_ports,
+                "added": added,
+                "deleted": deleted,
+                "timestamp": timestamp,
+                "history": data
+            }
+
         mysql.connection.commit()
         cursor.close()
-
-        return jsonify(result)
+        if not results:
+            return ""
+        return jsonify(results)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="nmap scanner")
